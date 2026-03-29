@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Checkerboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Mono:wght@400;500&display=swap');
+ 
+  :root {
+    --bg: #1a1208;
+    --panel: #221a0e;
+    --border: #5c3d1a;
+    --gold: #c9933a;
+    --gold-light: #e8b86d;
+    --cream: #f5ead8;
+  }
+ 
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+  body {
+    background: var(--bg);
+    font-family: 'DM Mono', monospace;
+    color: var(--cream);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px 20px;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, rgba(201,147,58,0.07) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(201,147,58,0.05) 0%, transparent 60%);
+  }
+ 
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+    letter-spacing: 0.12em;
+    color: var(--gold-light);
+    margin-bottom: 6px;
+    text-shadow: 0 2px 12px rgba(201,147,58,0.3);
+  }
+ 
+  .subtitle {
+    font-size: 0.68rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--gold);
+    opacity: 0.6;
+    margin-bottom: 28px;
+  }
+ 
+  .layout {
+    display: flex;
+    gap: 28px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+ 
+  /* ── Board ── */
+  .board-wrap {
+    position: relative;
+    width: 400px;
+    height: 400px;
+    flex-shrink: 0;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    box-shadow: 0 0 0 6px var(--panel), 0 0 0 8px var(--border), 0 16px 48px rgba(0,0,0,0.7);
+  }
+ 
+  #boardCanvas {
+    display: block;
+    position: absolute;
+    top: 0; left: 0;
+  }
+ 
+  /* Pieces layer — above canvas */
+  #piecesLayer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 400px;
+    height: 400px;
+    pointer-events: none;
+    z-index: 10;
+  }
+ 
+  /* Arrow SVG — above pieces */
+  #arrowSvg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 400px;
+    height: 400px;
+    pointer-events: none;
+    z-index: 20;
+  }
+ 
+  /* Checker wrapper div */
+  .checker {
+    position: absolute;
+    border-radius: 50%;
+    overflow: hidden;
+    transition: left 0.22s cubic-bezier(.34,1.3,.64,1),
+                top  0.22s cubic-bezier(.34,1.3,.64,1);
+  }
+ 
+  .checker img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    border-radius: 50%;
+    /* CSS fallback colours shown while/if images are loading */
+    background: transparent;
+  }
+ 
+  /* Fallback circle when image fails to load */
+  .checker.fallback-red {
+    background: radial-gradient(circle at 35% 35%, #e8604a, #8b1a0f);
+    border: 2px solid #7a1208;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.5);
+  }
+  .checker.fallback-black {
+    background: radial-gradient(circle at 35% 35%, #555, #111);
+    border: 2px solid #000;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.6);
+  }
+  /* King crown overlay when using fallback */
+  .checker.fallback-king::after {
+    content: '♛';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.3em;
+    color: var(--gold-light);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+  }
+ 
+  /* ── Sidebar panel ── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 22px 18px;
+    width: 160px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+ 
+  .panel-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    color: var(--gold);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+    margin-bottom: 2px;
+  }
+ 
+  .btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--cream);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    padding: 10px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    width: 100%;
+  }
+ 
+  .btn:hover {
+    background: var(--gold);
+    color: var(--bg);
+    border-color: var(--gold);
+  }
+ 
+  .btn.primary {
+    background: var(--gold);
+    color: var(--bg);
+    border-color: var(--gold-light);
+    font-weight: 500;
+  }
+  .btn.primary:hover { background: var(--gold-light); }
+ 
+  .status {
+    margin-top: 4px;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+    font-size: 0.63rem;
+    color: var(--gold);
+    line-height: 1.7;
+    min-height: 60px;
+    opacity: 0.85;
+  }
+ 
+  .img-note {
+    font-size: 0.58rem;
+    color: var(--gold);
+    opacity: 0.45;
+    line-height: 1.55;
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+ 
+<h1>Checkerboard</h1>
+<p class="subtitle">Classic Strategy — Interactive Demo</p>
+ 
+<div class="layout">
+ 
+  <!-- 8x8 Board -->
+  <div class="board-wrap">
+    <canvas id="boardCanvas" width="400" height="400"></canvas>
+    <div id="piecesLayer"></div>
+    <svg id="arrowSvg" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+ 
+  <!-- Sidebar -->
+  <div class="panel">
+    <div class="panel-title">Controls</div>
+    <button class="btn primary" id="btnNewGame">New Game</button>
+    <button class="btn" id="btnMoveRandomly">Move Random</button>
+    <button class="btn" id="btnKingRandomly">King Random</button>
+    <button class="btn" id="btnClear">Clear Board</button>
+    <div class="status" id="statusMsg">Ready. Click New Game!</div>
+    <div class="img-note">
+      Put red-piece.png, black-piece.png, red-king.png, blackking.png in the same folder as this file to use custom piece images.
+    </div>
+  </div>
+ 
+</div>
+ 
+<script>
+/* ============================================================
+   BoardEvent
+   ============================================================ */
+function BoardEvent(type, details) {
+  this.type    = type;
+  this.details = details;
+}
+ 
+/* ============================================================
+   Checker
+   ============================================================ */
+function Checker(color, isKing) {
+  this.color  = color;
+  this.isKing = isKing || false;
+  this.row    = null;
+  this.col    = null;
+  this.toString = function() {
+    var n = this.color;
+    return this.isKing ? n.toUpperCase() : n;
+  };
+}
+ 
+/* ============================================================
+   Board  (fixed 8x8)
+   ============================================================ */
+function Board(size) {
+  this.boardSize = size;
+  this.square    = [];
+  for (var i = 0; i <= size; i++) this.square[i] = [];
+  this.allHandlers = {};
+ 
+  this.size = function() { return this.boardSize; };
+ 
+  this.isValidLocation = function(r, c) {
+    return r >= 0 && r < this.boardSize && c >= 0 && c < this.boardSize;
+  };
+ 
+  this.isEmptyLocation = function(r, c) {
+    return !(this.square[r] && this.square[r][c]);
+  };
+ 
+  this.getCheckerAt = function(r, c) {
+    if (!this.isValidLocation(r, c)) return null;
+    return this.square[r][c] || null;
+  };
+ 
+  this.getLocationOf = function(checker) {
+    return { row: checker.row, col: checker.col };
+  };
+ 
+  this.getAllCheckers = function() {
+    var res = [];
+    for (var r in this.square)
+      for (var c in this.square[r])
+        if (this.square[r][c]) res.push(this.square[r][c]);
+    return res;
+  };
+ 
+  this.add = function(checker, row, col) {
+    if (!this.isValidLocation(row, col) || !this.isEmptyLocation(row, col)) return;
+    checker.row = row; checker.col = col;
+    this.square[row][col] = checker;
+    this._dispatch("add", { checker: checker, row: row, col: col });
+  };
+ 
+  this.moveTo = function(checker, toRow, toCol) {
+    if (!this.isValidLocation(toRow, toCol) || !this.isEmptyLocation(toRow, toCol)) return;
+    var details = {
+      checker: checker,
+      fromRow: checker.row, fromCol: checker.col,
+      toRow: toRow,         toCol: toCol
+    };
+    delete this.square[checker.row][checker.col];
+    this.square[toRow][toCol] = checker;
+    checker.row = toRow; checker.col = toCol;
+    // Fire move first so arrow draws before possible promotion
+    this._dispatch("move", details);
+    if (this.canBeKing(checker, toRow)) this.promote(checker);
+  };
+ 
+  this.remove = function(checker) {
+    var details = { checker: checker, row: checker.row, col: checker.col };
+    delete this.square[checker.row][checker.col];
+    this._dispatch("remove", details);
+  };
+ 
+  this.removeAt = function(row, col) {
+    var c = this.square[row] && this.square[row][col];
+    if (!c) return;
+    delete this.square[row][col];
+    this._dispatch("remove", { checker: c, row: row, col: col });
+  };
+ 
+  this.clear = function() {
+    this.getAllCheckers().forEach(function(c) { this.remove(c); }, this);
+  };
+ 
+  this.promote = function(checker) {
+    checker.isKing = true;
+    this._dispatch("promote", { checker: checker });
+  };
+ 
+  this.canBeKing = function(checker, row) {
+    return checker.color === "red" ? row === this.boardSize - 1 : row === 0;
+  };
+ 
+  this.prepareNewGame = function() {
+    this.clear();
+    for (var i = 0; i < this.boardSize; i++) {
+      this.add(new Checker("red",   false), 1 - (i % 2),                  i);
+      this.add(new Checker("black", false), this.boardSize - 1 - (i % 2), i);
+    }
+  };
+ 
+  this.getRandomChecker = function() {
+    var a = this.getAllCheckers();
+    return a.length ? a[Math.floor(Math.random() * a.length)] : null;
+  };
+ 
+  this.getRandomNonKing = function() {
+    var nk = this.getAllCheckers().filter(function(c) { return !c.isKing; });
+    return nk.length ? nk[Math.floor(Math.random() * nk.length)] : null;
+  };
+ 
+  this.getRandomEmptyLocation = function() {
+    var locs = [];
+    for (var r = 0; r < this.boardSize; r++)
+      for (var c = 0; c < this.boardSize; c++)
+        if (this.isEmptyLocation(r, c)) locs.push({ row: r, col: c });
+    return locs.length ? locs[Math.floor(Math.random() * locs.length)] : null;
+  };
+ 
+  this.addEventListener = function(type, fn) {
+    if (!this.allHandlers[type]) this.allHandlers[type] = [];
+    this.allHandlers[type].push(fn);
+  };
+ 
+  this._dispatch = function(type, details) {
+    var evt = new BoardEvent(type, details);
+    (this.allHandlers[type] || []).forEach(function(h) { h(evt); });
+  };
+}
+ 
+/* ============================================================
+   View
+   ============================================================ */
+(function () {
+  var BOARD_PX   = 400;
+  var BOARD_SIZE = 8;        // fixed 8x8
+  var SQ         = 50;       // 400 / 8 = 50px per square
+  var PAD        = SQ * 0.07;
+ 
+  var board       = new Board(BOARD_SIZE);
+  var canvas      = document.getElementById('boardCanvas');
+  var ctx         = canvas.getContext('2d');
+  var piecesLayer = document.getElementById('piecesLayer');
+  var arrowSvg    = document.getElementById('arrowSvg');
+  var statusMsg   = document.getElementById('statusMsg');
+ 
+  // checker object → DOM element
+  var checkerEls = new Map();
+ 
+  // flag to suppress arrow clear during bulk clear
+  var bulkClearing = false;
+ 
+  /* ----------------------------------------------------------
+     Image filenames
+     ---------------------------------------------------------- */
+  var IMG_SRC = {
+    'red-normal':   'red-piece.png',
+    'red-king':     'red-king.png',
+    'black-normal': 'black-piece.png',
+    'black-king':   'blackking.png'
+  };
+ 
+  function imgKey(checker) {
+    return checker.color + (checker.isKing ? '-king' : '-normal');
+  }
+ 
+  /* ----------------------------------------------------------
+     Draw checkerboard squares on canvas
+     ---------------------------------------------------------- */
+  function drawBoard() {
+    for (var r = 0; r < BOARD_SIZE; r++) {
+      for (var c = 0; c < BOARD_SIZE; c++) {
+        ctx.fillStyle = (r + c) % 2 === 0 ? '#f0d9b5' : '#b58863';
+        ctx.fillRect(c * SQ, r * SQ, SQ, SQ);
+      }
+    }
+  }
+ 
+  /* ----------------------------------------------------------
+     Create a piece DOM element (image-based with CSS fallback)
+     ---------------------------------------------------------- */
+  function createCheckerEl(checker) {
+    var el  = document.createElement('div');
+    var img = document.createElement('img');
+    var key = imgKey(checker);
+ 
+    img.src = IMG_SRC[key];
+    img.alt = checker.toString();
+ 
+    // If image file doesn't exist, show a solid CSS circle
+    img.onerror = function() {
+      img.style.display = 'none';
+      el.classList.add('fallback-' + checker.color);
+      if (checker.isKing) el.classList.add('fallback-king');
+    };
+ 
+    el.className = 'checker';
+    el.style.width  = (SQ - PAD * 2) + 'px';
+    el.style.height = (SQ - PAD * 2) + 'px';
+    positionEl(el, checker.row, checker.col);
+ 
+    el.appendChild(img);
+    piecesLayer.appendChild(el);
+    checkerEls.set(checker, el);
+  }
+ 
+  function positionEl(el, row, col) {
+    el.style.left = (col * SQ + PAD) + 'px';
+    el.style.top  = (row * SQ + PAD) + 'px';
+  }
+ 
+  function updateCheckerEl(checker) {
+    var el = checkerEls.get(checker);
+    if (!el) return;
+    positionEl(el, checker.row, checker.col);
+    // Refresh image src in case piece was just promoted
+    var img = el.querySelector('img');
+    if (img && img.style.display !== 'none') {
+      img.src = IMG_SRC[imgKey(checker)];
+    }
+    // Update fallback king crown if needed
+    if (checker.isKing) el.classList.add('fallback-king');
+  }
+ 
+  function removeCheckerEl(checker) {
+    var el = checkerEls.get(checker);
+    if (el) { el.remove(); checkerEls.delete(checker); }
+  }
+ 
+  function removeAllEls() {
+    checkerEls.forEach(function(el) { el.remove(); });
+    checkerEls.clear();
+  }
+ 
+  /* ----------------------------------------------------------
+     Yellow arrow (SVG, z-index above pieces)
+     Arrow persists until the next board change.
+     ---------------------------------------------------------- */
+  function clearArrow() {
+    while (arrowSvg.firstChild) arrowSvg.removeChild(arrowSvg.firstChild);
+  }
+ 
+  function drawArrow(fromRow, fromCol, toRow, toCol) {
+    clearArrow();
+ 
+    var x1 = fromCol * SQ + SQ / 2;
+    var y1 = fromRow * SQ + SQ / 2;
+    var x2 = toCol   * SQ + SQ / 2;
+    var y2 = toRow   * SQ + SQ / 2;
+ 
+    // Shorten endpoint slightly so arrowhead tip sits inside the square
+    var dx = x2 - x1, dy = y2 - y1;
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var shorten = 6;
+    var ex = x2 - (dx / len) * shorten;
+    var ey = y2 - (dy / len) * shorten;
+ 
+    var ns = 'http://www.w3.org/2000/svg';
+ 
+    var defs = document.createElementNS(ns, 'defs');
+ 
+    // Arrowhead marker
+    var marker = document.createElementNS(ns, 'marker');
+    marker.setAttribute('id', 'arrowhead');
+    marker.setAttribute('markerWidth',  '10');
+    marker.setAttribute('markerHeight', '7');
+    marker.setAttribute('refX', '9');
+    marker.setAttribute('refY', '3.5');
+    marker.setAttribute('orient', 'auto');
+    var poly = document.createElementNS(ns, 'polygon');
+    poly.setAttribute('points', '0 0, 10 3.5, 0 7');
+    poly.setAttribute('fill', '#f1c40f');
+    marker.appendChild(poly);
+    defs.appendChild(marker);
+ 
+    // Drop-shadow filter so arrow is visible over any colour piece
+    var filt = document.createElementNS(ns, 'filter');
+    filt.setAttribute('id', 'arrowShadow');
+    filt.setAttribute('x', '-20%'); filt.setAttribute('y', '-20%');
+    filt.setAttribute('width', '140%'); filt.setAttribute('height', '140%');
+    var shadow = document.createElementNS(ns, 'feDropShadow');
+    shadow.setAttribute('dx', '0'); shadow.setAttribute('dy', '0');
+    shadow.setAttribute('stdDeviation', '2.5');
+    shadow.setAttribute('flood-color', 'rgba(0,0,0,0.75)');
+    filt.appendChild(shadow);
+    defs.appendChild(filt);
+ 
+    arrowSvg.appendChild(defs);
+ 
+    var line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', ex); line.setAttribute('y2', ey);
+    line.setAttribute('stroke', '#f1c40f');
+    line.setAttribute('stroke-width', '4.5');
+    line.setAttribute('stroke-linecap', 'round');
+    line.setAttribute('marker-end', 'url(#arrowhead)');
+    line.setAttribute('filter', 'url(#arrowShadow)');
+    arrowSvg.appendChild(line);
+  }
+ 
+  /* ----------------------------------------------------------
+     Status helper
+     ---------------------------------------------------------- */
+  function setStatus(msg) { statusMsg.textContent = msg; }
+ 
+  /* ----------------------------------------------------------
+     Board event listeners
+     ---------------------------------------------------------- */
+  board.addEventListener('add', function(e) {
+    createCheckerEl(e.details.checker);
+  });
+ 
+  board.addEventListener('remove', function(e) {
+    if (!bulkClearing) clearArrow(); // clear arrow on any single remove
+    removeCheckerEl(e.details.checker);
+  });
+ 
+  board.addEventListener('move', function(e) {
+    var d = e.details;
+    // Draw arrow from OLD position to NEW position — persists until next change
+    drawArrow(d.fromRow, d.fromCol, d.toRow, d.toCol);
+    // Move the piece element
+    updateCheckerEl(d.checker);
+    setStatus(
+      'Moved ' + d.checker.color + (d.checker.isKing ? ' king' : '') +
+      ' [' + d.fromRow + ',' + d.fromCol + ']' +
+      ' → [' + d.toRow + ',' + d.toCol + ']'
+    );
+  });
+ 
+  board.addEventListener('promote', function(e) {
+    var c = e.details.checker;
+    updateCheckerEl(c);
+    setStatus(c.color + ' at [' + c.row + ',' + c.col + '] promoted to King!');
+  });
+ 
+  /* ----------------------------------------------------------
+     Button handlers
+     ---------------------------------------------------------- */
+  document.getElementById('btnNewGame').addEventListener('click', function() {
+    clearArrow();
+    removeAllEls();
+    board.prepareNewGame();
+    setStatus('New game! ' + board.getAllCheckers().length + ' pieces on board.');
+  });
+ 
+  document.getElementById('btnMoveRandomly').addEventListener('click', function() {
+    var checker = board.getRandomChecker();
+    var loc     = board.getRandomEmptyLocation();
+    if (checker && loc) {
+      board.moveTo(checker, loc.row, loc.col);
+    } else {
+      setStatus('No valid move available.');
+    }
+  });
+ 
+  document.getElementById('btnKingRandomly').addEventListener('click', function() {
+    var checker = board.getRandomNonKing();
+    if (checker) {
+      board.promote(checker);
+    } else {
+      setStatus('No non-king pieces remaining.');
+    }
+  });
+ 
+  document.getElementById('btnClear').addEventListener('click', function() {
+    bulkClearing = true;
+    board.clear();
+    bulkClearing = false;
+    clearArrow();
+    removeAllEls(); // safety clean-up
+    setStatus('Board cleared.');
+  });
+ 
+  /* ----------------------------------------------------------
+     Initialise
+     ---------------------------------------------------------- */
+  drawBoard();
+  board.prepareNewGame();
+  setStatus('New game! ' + board.getAllCheckers().length + ' pieces on board.');
+})();
+</script>
+</body>
+</html>
